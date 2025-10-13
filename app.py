@@ -13,7 +13,6 @@ from modal import (
     Image,
     Volume,
     asgi_app,
-    cls,
     enter,
     gpu,
     method,
@@ -100,7 +99,8 @@ MODEL_PATH = COMFYUI_PATH / "models"
 volume = Volume.from_name("comfyui-models-massive-volume", create_if_missing=True)
 
 comfy_image = (
-    Image.from_registry("nvidia/cuda:12.1.1-devel-ubuntu22.04", .env={"NVIDIA_DRIVER_CAPABILITIES": "all"})
+    Image.from_registry("nvidia/cuda:12.1.1-devel-ubuntu22.04")
+    .env({"NVIDIA_DRIVER_CAPABILITIES": "all"})
     .apt_install("git", "wget", "libgl1", "libglib2.0-0")
     .run_commands(
         f"git clone https://github.com/comfyanonymous/ComfyUI.git {COMFYUI_PATH}",
@@ -109,6 +109,7 @@ comfy_image = (
         f"cd {COMFYUI_PATH / 'custom_nodes'} && git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
         f"cd {COMFYUI_PATH / 'custom_nodes'} && git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git",
     )
+    .pip_install("websocket-client")
 )
 
 @app.function(
@@ -141,7 +142,7 @@ def download_models():
     concurrency_limit=100,
     allow_concurrent_inputs=15,
     timeout=3600,
-    scaledown_window=120,
+    container_idle_timeout=120,
 )
 class ComfyUI:
     @enter()
@@ -160,7 +161,8 @@ class ComfyUI:
     def _queue_prompt(self, client_id: str, prompt_workflow: dict):
         req = urllib.request.Request(
             "http://127.0.0.1:8188/prompt",
-            data=json.dumps({"prompt": prompt_workflow, "client_id": client_id}).encode('utf-8')
+            data=json.dumps({"prompt": prompt_workflow, "client_id": client_id}).encode('utf-8'),
+            headers={'Content-Type': 'application/json'}
         )
         return json.loads(urllib.request.urlopen(req).read())['prompt_id']
 
@@ -178,13 +180,16 @@ class ComfyUI:
         ws_url = f"ws://127.0.0.1:8188/ws?clientId={client_id}"
         ws = websocket.WebSocket()
         ws.connect(ws_url)
-        while True:
-            out = ws.recv()
-            if isinstance(out, str):
-                message = json.loads(out)
-                if message['type'] == 'executing' and message['data']['node'] is None and message['data']['prompt_id'] == prompt_id:
-                    break
-        ws.close()
+        try:
+            while True:
+                out = ws.recv()
+                if isinstance(out, str):
+                    message = json.loads(out)
+                    if message['type'] == 'executing' and message['data']['node'] is None and message['data']['prompt_id'] == prompt_id:
+                        break
+        finally:
+            ws.close()
+        
         history = self._get_history(prompt_id)[prompt_id]
         for node_id, node_output in history['outputs'].items():
             if 'gifs' in node_output:
@@ -202,30 +207,97 @@ class ComfyUI:
         frames = payload.get("frames", 24)
         lora_name = payload.get("lora_name", "None")
         
-        workflow_template = """
-        {{
-          "3": {{ "class_type": "KSampler", "inputs": {{ "seed": {seed}, "steps": {steps}, "cfg": 8, "sampler_name": "euler", "scheduler": "normal", "denoise": 1, "model": ["17", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0] }} }},
-          "5": {{ "class_type": "EmptyLatentImage", "inputs": {{ "width": {width}, "height": {height}, "batch_size": 1 }} }},
-          "6": {{ "class_type": "CLIPTextEncode", "inputs": {{ "text": "{prompt}", "clip": ["17", 1] }} }},
-          "7": {{ "class_type": "CLIPTextEncode", "inputs": {{ "text": "{negative_prompt}", "clip": ["17", 1] }} }},
-          "9": {{ "class_type": "VHS_VideoCombine", "inputs": {{ "frame_rate": 8, "loop_count": 0, "filename_prefix": "ComfyUI_Video", "format": "image/gif", "pingpong": false, "save_image": true, "images": ["16", 0] }} }},
-          "10": {{ "class_type": "ADE_AnimateDiffLoader", "inputs": {{ "model_name": "mm_sd_v15_v2.ckpt" }} }},
-          "13": {{ "class_type": "CheckpointLoaderSimple", "inputs": {{ "ckpt_name": "realisticVisionV60_v60B1.safetensors" }} }},
-          "15": {{ "class_type": "ADE_ApplyAnimateDiff", "inputs": {{ "frame_limit": {frames}, "model": ["13", 0], "clip": ["13", 1], "ad_model": ["10", 0] }} }},
-          "16": {{ "class_type": "VAEDecode", "inputs": {{ "samples": ["3", 0], "vae": ["13", 2] }} }},
-          "17": {{ "class_type": "LoraLoader", "inputs": {{ "lora_name": "{lora_name}", "strength_model": 0.8, "strength_clip": 0.8, "model": ["15", 0], "clip": ["15", 1] }} }}
-        }}
-        """
+        workflow = {
+            "3": {
+                "class_type": "KSampler",
+                "inputs": {
+                    "seed": seed,
+                    "steps": steps,
+                    "cfg": 8,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1,
+                    "model": ["17", 0],
+                    "positive": ["6", 0],
+                    "negative": ["7", 0],
+                    "latent_image": ["5", 0]
+                }
+            },
+            "5": {
+                "class_type": "EmptyLatentImage",
+                "inputs": {
+                    "width": width,
+                    "height": height,
+                    "batch_size": 1
+                }
+            },
+            "6": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": prompt,
+                    "clip": ["17", 1]
+                }
+            },
+            "7": {
+                "class_type": "CLIPTextEncode",
+                "inputs": {
+                    "text": negative_prompt,
+                    "clip": ["17", 1]
+                }
+            },
+            "9": {
+                "class_type": "VHS_VideoCombine",
+                "inputs": {
+                    "frame_rate": 8,
+                    "loop_count": 0,
+                    "filename_prefix": "ComfyUI_Video",
+                    "format": "image/gif",
+                    "pingpong": False,
+                    "save_image": True,
+                    "images": ["16", 0]
+                }
+            },
+            "10": {
+                "class_type": "ADE_AnimateDiffLoader",
+                "inputs": {
+                    "model_name": "mm_sd_v15_v2.ckpt"
+                }
+            },
+            "13": {
+                "class_type": "CheckpointLoaderSimple",
+                "inputs": {
+                    "ckpt_name": "realisticVisionV60_v60B1.safetensors"
+                }
+            },
+            "15": {
+                "class_type": "ADE_ApplyAnimateDiff",
+                "inputs": {
+                    "frame_limit": frames,
+                    "model": ["13", 0],
+                    "clip": ["13", 1],
+                    "ad_model": ["10", 0]
+                }
+            },
+            "16": {
+                "class_type": "VAEDecode",
+                "inputs": {
+                    "samples": ["3", 0],
+                    "vae": ["13", 2]
+                }
+            },
+            "17": {
+                "class_type": "LoraLoader",
+                "inputs": {
+                    "lora_name": lora_name,
+                    "strength_model": 0.8,
+                    "strength_clip": 0.8,
+                    "model": ["15", 0],
+                    "clip": ["15", 1]
+                }
+            }
+        }
         
-        prompt_sanitized = json.dumps(prompt)[1:-1]
-        negative_prompt_sanitized = json.dumps(negative_prompt)[1:-1]
-
-        formatted_workflow = workflow_template.format(
-            seed=seed, steps=steps, width=width, height=height, 
-            prompt=prompt_sanitized, negative_prompt=negative_prompt_sanitized, 
-            frames=frames, lora_name=lora_name
-        )
-        return json.loads(formatted_workflow)
+        return workflow
 
     @method()
     def generate_video(self, payload: Dict):
@@ -239,18 +311,19 @@ class ComfyUI:
         video_data = self._get_video_from_websocket(prompt_id, client_id)
         return video_data
 
-@app.asgi_app()
+@app.function()
+@asgi_app()
 def fastapi_app():
     from fastapi import FastAPI, Request
     from fastapi.responses import Response, JSONResponse
 
     web_app = FastAPI()
-    comfy_runner = ComfyUI()
 
     @web_app.post("/generate")
     async def generate(request: Request):
         try:
             payload = await request.json()
+            comfy_runner = ComfyUI()
             video_bytes = comfy_runner.generate_video.remote(payload)
             return Response(content=video_bytes, media_type="image/gif")
         except (ValueError, NotImplementedError) as e:
