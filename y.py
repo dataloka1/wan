@@ -875,4 +875,4 @@ def download_models_task(required_only: bool = False):
         models_volume.commit()
         
         logger.info("=" * 80)
-        logger.info(f"✅ DOWNLOAD
+        logger.info(f"✅ DOWNLOAD COMPLETE - {count} models")
