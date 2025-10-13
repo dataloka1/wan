@@ -32,7 +32,6 @@ image = (
         "pip install xformers==0.0.22.post7 --index-url https://download.pytorch.org/whl/cu121",
     )
     .pip_install(
-        "cerebras-cloud-sdk",
         "transformers>=4.35.0",
         "diffusers>=0.25.0",
         "accelerate>=0.25.0",
