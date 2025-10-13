@@ -2,16 +2,16 @@
 REQUIREMENTS = [
     "git", "wget", "curl", "libgl1-mesa-glx", "libglib2.0-0",
     "ffmpeg", "libsm6", "libxext6", "libxrender-dev",
-    "websocket-client>=1.6.0", 
-    "safetensors>=0.4.0", 
-    "pillow>=10.0.0",
-    "numpy>=1.24.0", 
-    "torch>=2.0.0", 
-    "torchvision>=0.15.0",
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.24.0",
-    "pydub>=0.25.1",
-    "huggingface_hub[hf_transfer]>=0.34.0,<1.0"
+    "websocket-client", 
+    "safetensors", 
+    "pillow",
+    "numpy", 
+    "torch", 
+    "torchvision",
+    "fastapi",
+    "uvicorn[standard]",
+    "pydub",
+    "huggingface_hub"
 ]
 
 # Import library yang diperlukan
