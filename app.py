@@ -1,7 +1,7 @@
 # Requirements - Pindahkan ke paling atas untuk memastikan semua library terinstal
 REQUIREMENTS = [
     "git", "wget", "curl", "libgl1-mesa-glx", "libglib2.0-0",
-    "ffmpeg", "libsm6", "libxext6", "libxrender-dev",
+    "ffmpeg", "libsm6", "libxext6", "libxrender-dev", "pkg-config", "libcairo2-dev",
     "websocket-client", 
     "safetensors", 
     "pillow",
@@ -266,7 +266,7 @@ cache_volume = Volume.from_name("hf-hub-cache", create_if_missing=True)
 # Definisi Image dengan requirements yang sudah dipindahkan ke atas
 comfy_image = (
     Image.debian_slim(python_version="3.10")
-    .apt_install(*REQUIREMENTS[:9])  # Install apt packages
+    .apt_install(*REQUIREMENTS[:11])  # Install apt packages
     .run_commands(
         "mkdir -p /app /cache",
         "cd /app && git clone https://github.com/comfyanonymous/ComfyUI.git",
@@ -284,7 +284,7 @@ comfy_image = (
         "cd /app/ComfyUI/custom_nodes && git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git",
         "cd /app/ComfyUI/custom_nodes/comfyui_controlnet_aux && pip install --no-cache-dir -r requirements.txt",
     )
-    .pip_install(*REQUIREMENTS[10:])  # Install pip packages
+    .pip_install(*REQUIREMENTS[11:])  # Install pip packages
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
 )
 
