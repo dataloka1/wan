@@ -1306,7 +1306,7 @@ class ComfyUI:
                     "video": ["109", 0]
                 }
             }
-        })
+        }
         
         prompt_id = self._queue_prompt(client_id, workflow)
         video_bytes = self._get_video_from_websocket(prompt_id, client_id)
