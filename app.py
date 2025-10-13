@@ -21,7 +21,6 @@ from modal import (
 
 app = App(
     "comfyui-video-prod-api-v2",
-    scaledown_window=120,
 )
 
 MODEL_REGISTRY = {
@@ -142,7 +141,7 @@ def download_models():
     concurrency_limit=100,
     allow_concurrent_inputs=15,
     timeout=3600,
-    container_idle_timeout=300,
+    scaledown_window=120,
 )
 class ComfyUI:
     @enter()
