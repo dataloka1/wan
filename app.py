@@ -570,13 +570,14 @@ class ComfyUI:
                 "class_type": "CheckpointLoaderSimple",
                 "inputs": {"ckpt_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"}
             },
+            # === PERUBAHAN DI SINI ===
             "2": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["4", 1]}
+                "inputs": {"text": prompt, "clip": ["4", 0]}  # Ubah dari 1 menjadi 0
             },
             "3": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": negative_prompt, "clip": ["4", 1]}
+                "inputs": {"text": negative_prompt, "clip": ["4", 0]}  # Ubah dari 1 menjadi 0
             },
             "4": {
                 "class_type": "CLIPLoader",
@@ -623,11 +624,13 @@ class ComfyUI:
             }
         }
 
-        # Terapkan LoRA jika ada
+        # Terapkan LoRA jika ada (Logika LoRA Anda sudah benar)
         if loras:
+            # Panggilan ini sudah benar, karena _build_lora_chain menangani koneksi indeks 0 dengan benar
             final_model_id, final_clip_id, lora_nodes = self._build_lora_chain("1", "4", loras)
             workflow.update(lora_nodes)
             workflow["7"]["inputs"]["model"] = [final_model_id, 0]
+            # Koneksi ke output LoraLoader di indeks 1 untuk clip juga sudah benar
             workflow["2"]["inputs"]["clip"] = [final_clip_id, 1]
             workflow["3"]["inputs"]["clip"] = [final_clip_id, 1]
 
@@ -639,8 +642,6 @@ class ComfyUI:
         prompt_id = self._queue_prompt(client_id, workflow)
         video_data = self._get_video_from_websocket(prompt_id, client_id)
         return base64.b64encode(video_data).decode('utf-8')
-
-
 # Pydantic models untuk request body
 class GenerateVideoRequest(BaseModel):
     prompt: str = Field(..., example="A majestic cat sitting on a throne, cinematic lighting")
