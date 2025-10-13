@@ -11,7 +11,7 @@ REQUIREMENTS = [
     "fastapi",
     "uvicorn[standard]",
     "pydub",
-    "huggingface_hub"
+    "huggingface-hub[hf_transfer]"
 ]
 
 # Import library yang diperlukan
