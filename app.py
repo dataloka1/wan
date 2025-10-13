@@ -408,7 +408,7 @@ class ComfyUI:
                     "strength_model": strength,
                     "strength_clip": strength,
                     "model": [current_model_id, 0],
-                    "clip": [current_clip_id, 0]
+                    "clip": [current_clip_id, 0 if current_clip_id != "4" else 0]
                 }
             }
             print(f"[LORA-CHAIN] {idx+1}. {lora_name} (strength: {strength}) - Node {node_id}")
@@ -588,11 +588,11 @@ class ComfyUI:
             },
             "2": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["4", 0]}
+                "inputs": {"text": prompt, "clip": ["4", 1]}
             },
             "3": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": negative_prompt, "clip": ["4", 0]}
+                "inputs": {"text": negative_prompt, "clip": ["4", 1]}
             },
             "4": {
                 "class_type": "CLIPLoader",
@@ -644,8 +644,8 @@ class ComfyUI:
             final_model_id, final_clip_id, lora_nodes = self._build_lora_chain("1", "4", loras)
             workflow.update(lora_nodes)
             workflow["7"]["inputs"]["model"] = [final_model_id, 0]
-            workflow["2"]["inputs"]["clip"] = [final_clip_id, 1]
-            workflow["3"]["inputs"]["clip"] = [final_clip_id, 1]
+            workflow["2"]["inputs"]["clip"] = [final_clip_id, 0]
+            workflow["3"]["inputs"]["clip"] = [final_clip_id, 0]
 
         # Peringatan untuk ControlNet (T2V tidak punya input gambar)
         if controlnets:
