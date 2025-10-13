@@ -626,3 +626,180 @@ async def root():
 @asgi_app()
 def fastapi_app():
     return web_app
+    def _validate_model_file(self, model_type: str, filename: str, min_size_kb: int) -> bool:
+        model_path = MODEL_PATH / model_type / filename
+        if not model_path.exists():
+            print(f"[{model_type.upper()}-VALIDATION] [WARN] Model tidak ditemukan: {filename}")
+            return False
+        if not is_file_valid(model_path, min_size_kb):
+            print(f"[{model_type.upper()}-VALIDATION] [WARN] Model tidak valid: {filename}")
+            return False
+        print(f"[{model_type.upper()}-VALIDATION] [OK] Model divalidasi: {filename}")
+        return True
+
+    def _validate_lora_exists(self, lora_name: str) -> bool:
+        if not lora_name.endswith('.safetensors'): lora_name = f"{lora_name}.safetensors"
+        return self._validate_model_file("loras", lora_name, MIN_LORA_SIZE_KB)
+
+    def _validate_controlnet_exists(self, controlnet_name: str) -> bool:
+        return self._validate_model_file("controlnet", controlnet_name, MIN_FILE_SIZE_KB)
+
+    def _normalize_lora_strength(self, strength_input) -> float:
+        if isinstance(strength_input, str) and strength_input.lower() in LORA_PRESETS:
+            return LORA_PRESETS[strength_input.lower()]
+        try: return float(strength_input)
+        except: return 0.7
+
+    def _build_lora_chain(self, base_model_node_id: str, base_clip_node_id: str, loras_config: List) -> tuple:
+        if not loras_config: return base_model_node_id, base_clip_node_id, {}
+        print(f"\n[LORA-CHAIN] Membangun rantai dengan {len(loras_config)} LoRA")
+        lora_nodes = {}; current_model_id, current_clip_id = base_model_node_id, base_clip_node_id
+        for idx, lora_config in enumerate(loras_config):
+            lora_name = lora_config if isinstance(lora_config, str) else lora_config.get("name")
+            strength = self._normalize_lora_strength(lora_config.get("strength", 0.7) if isinstance(lora_config, dict) else 0.7)
+            if not lora_name: continue
+            if not lora_name.endswith('.safetensors'): lora_name = f"{lora_name}.safetensors"
+            if not self._validate_lora_exists(lora_name): continue
+            node_id = str(1000 + idx)
+            lora_nodes[node_id] = {"class_type": "LoraLoader", "inputs": {"lora_name": lora_name, "strength_model": strength, "strength_clip": strength, "model": [current_model_id, 0], "clip": [current_clip_id, 0]}}
+            print(f"[LORA-CHAIN] {idx+1}. {lora_name} (strength: {strength}) - Node {node_id}")
+            current_model_id, current_clip_id = node_id, node_id
+        return current_model_id, current_clip_id, lora_nodes
+
+    def _build_controlnet_nodes(self, image_node_id: str, controlnets_config: List, base_positive_id: str, base_negative_id: str) -> tuple:
+        if not controlnets_config: return base_positive_id, base_negative_id, {}
+        print(f"\n[CONTROLNET] Membangun nodes dengan {len(controlnets_config)} ControlNet")
+        print("[CONTROLNET] [WARN] Menggunakan ControlNet SD1.5 dengan model Wan2.2. Hasil mungkin tidak dapat diprediksi.")
+        controlnet_nodes = {}; current_positive_id, current_negative_id = base_positive_id, base_negative_id
+        cn_model_map = {"openpose": "control_v11p_sd15_openpose.pth", "canny": "control_v11p_sd15_canny.pth", "depth": "control_v11f1p_sd15_depth.pth", "lineart": "control_v11p_sd15_lineart.pth"}
+        preprocessor_map = {"openpose": ("OpenposePreprocessor", {"detect_hand": "enable", "detect_body": "enable", "detect_face": "enable"}), "canny": ("CannyEdgePreprocessor", {"low_threshold": 100, "high_threshold": 200}), "depth": ("MiDaS-DepthMapPreprocessor", {"a": 6.283185307179586, "bg_threshold": 0.1}), "lineart": ("LineArtPreprocessor", {"coarse": "disable"})}
+        for idx, cn_config in enumerate(controlnets_config):
+            cn_type = cn_config if isinstance(cn_config, str) else cn_config.get("type")
+            strength = float(cn_config.get("strength", 1.0) if isinstance(cn_config, dict) else 1.0)
+            if not cn_type: continue
+            cn_model = cn_model_map.get(cn_type.lower())
+            if not cn_model or not self._validate_controlnet_exists(cn_model): continue
+            loader_id = str(2000 + idx * 10)
+            controlnet_nodes[loader_id] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": cn_model}}
+            preprocessor_info = preprocessor_map.get(cn_type.lower())
+            preprocessed_image_id = image_node_id
+            if preprocessor_info:
+                preprocessor_id = str(loader_id + 1)
+                preprocessor_inputs = {"image": [image_node_id, 0]}; preprocessor_inputs.update(preprocessor_info[1])
+                controlnet_nodes[preprocessor_id] = {"class_type": preprocessor_info[0], "inputs": preprocessor_inputs}
+                preprocessed_image_id = preprocessor_id
+            apply_id = str(loader_id + 2)
+            controlnet_nodes[apply_id] = {"class_type": "ControlNetApplyAdvanced", "inputs": {"positive": [current_positive_id, 0], "negative": [current_negative_id, 0], "control_net": [loader_id, 0], "image": [preprocessed_image_id, 0], "strength": strength, "start_percent": 0.0, "end_percent": 1.0}}
+            print(f"[CONTROLNET] {idx+1}. {cn_type} (strength: {strength}) - Nodes {loader_id}-{apply_id}")
+            current_positive_id, current_negative_id = apply_id, apply_id
+        return current_positive_id, current_negative_id, controlnet_nodes
+
+    def _queue_prompt(self, client_id: str, prompt_workflow: dict):
+        req = urllib.request.Request(f"http://127.0.0.1:{SERVER_PORT}/prompt", data=json.dumps({"prompt": prompt_workflow, "client_id": client_id}).encode('utf-8'), headers={'Content-Type': 'application/json'})
+        response = urllib.request.urlopen(req).read()
+        return json.loads(response)['prompt_id']
+
+    def _get_history(self, prompt_id: str):
+        with urllib.request.urlopen(f"http://127.0.0.1:{SERVER_PORT}/history/{prompt_id}") as response:
+            return json.loads(response.read())
+
+    def _get_file(self, filename: str, subfolder: str, folder_type: str):
+        params = urllib.parse.urlencode({'filename': filename, 'subfolder': subfolder, 'type': folder_type})
+        url = f"http://127.0.0.1:{SERVER_PORT}/view?{params}"
+        with urllib.request.urlopen(url) as response:
+            data = bytearray()
+            while True:
+                chunk = response.read(8192)
+                if not chunk: break
+                data.extend(chunk)
+            print(f"[FILE] [OK] File diambil: {len(data)/1024/1024:.2f} MB")
+            return bytes(data)
+
+    def _get_video_from_websocket(self, prompt_id: str, client_id: str):
+        ws_url = f"ws://127.0.0.1:{SERVER_PORT}/ws?clientId={client_id}"
+        ws = websocket.WebSocket()
+        try:
+            ws.connect(ws_url, timeout=10)
+            print("[WEBSOCKET] [OK] Terhubung")
+        except Exception as e: raise RuntimeError(f"Koneksi WebSocket gagal: {str(e)}")
+        start_time = time.time()
+        try:
+            while time.time() - start_time < MAX_GENERATION_TIME:
+                try:
+                    out = ws.recv(timeout=60)
+                    if isinstance(out, str):
+                        message = json.loads(out)
+                        if message.get('type') == 'progress':
+                            data = message.get('data', {})
+                            print(f"[WEBSOCKET] Progress: {data.get('value', 0)}/{data.get('max', 100)} ({data.get('value', 0)/max(data.get('max', 1)*100):.1f}%)")
+                        elif message.get('type') == 'executing' and not message.get('data', {}).get('node'):
+                            print("[WEBSOCKET] [OK] Generasi selesai")
+                            break
+                except websocket.WebSocketTimeoutException:
+                    print("[WEBSOCKET] Timeout, mencoba lagi...")
+                    continue
+        finally:
+            ws.close()
+        if time.time() - start_time >= MAX_GENERATION_TIME:
+            raise TimeoutError(f"Generasi video melebihi batas waktu {MAX_GENERATION_TIME} detik")
+        history = self._get_history(prompt_id)[prompt_id]
+        for node_id, node_output in history['outputs'].items():
+            for video_type in ['videos', 'gifs']:
+                if video_type in node_output:
+                    for item in node_output[video_type]:
+                        print(f"[OUTPUT] [OK] Ditemukan {video_type[:-1]}: {item['filename']}")
+                        return self._get_file(item['filename'], item['subfolder'], item['type'])
+        raise ValueError("Tidak ada output video ditemukan")
+
+    def _save_base64_image(self, image_base64: str) -> str:
+        temp_filename = f"/tmp/{uuid.uuid4()}.png"
+        return _save_base64_to_file(image_base64, temp_filename, "image")
+
+    def _save_base64_audio(self, audio_base64: str) -> str:
+        temp_filename = f"/tmp/{uuid.uuid4()}.wav"
+        return _save_base64_to_file(audio_base64, temp_filename, "audio")
+
+    @method()
+    def generate_video(self, prompt: str, loras: Optional[List[Union[str, Dict]]] = None, controlnets: Optional[List[Union[str, Dict]]] = None):
+        client_id = str(uuid.uuid4())
+        workflow = {
+            "1": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "wan2.2_t2v_low_noise_14B_fp8_scaled.safetensors"}},
+            "2": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["1", 1]}},
+            "3": {"class_type": "CLIPTextEncode", "inputs": {"text": "", "clip": ["1", 1]}},
+            "4": {"class_type": "EmptyLatentImage", "inputs": {"width": 1024, "height": 576, "batch_size": 1}},
+            "5": {"class_type": "WanSampler", "inputs": {"seed": 42, "steps": 30, "cfg": 7.5, "sampler_name": "euler", "scheduler": "normal", "denoise": 1.0, "model": ["1", 0], "positive": ["2", 0], "negative": ["3", 0], "latent_image": ["4", 0]}},
+            "6": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["7", 0]}},
+            "7": {"class_type": "VAELoader", "inputs": {"vae_name": "wan_2.1_vae.safetensors"}},
+            "8": {"class_type": "SaveAnimatedWEBP", "inputs": {"images": ["6", 0], "filename_prefix": "ComfyUI", "fps": 8, "lossless": False}}
+        }
+        final_model_id, final_clip_id, lora_nodes = self._build_lora_chain("1", "1", loras or [])
+        workflow.update(lora_nodes)
+        if final_model_id != "1":
+            workflow["5"]["inputs"]["model"] = [final_model_id, 0]
+            workflow["2"]["inputs"]["clip"] = [final_clip_id, 0]
+            workflow["3"]["inputs"]["clip"] = [final_clip_id, 0]
+        prompt_id = self._queue_prompt(client_id, workflow)
+        video_data = self._get_video_from_websocket(prompt_id, client_id)
+        return base64.b64encode(video_data).decode('utf-8')
+
+web_app = FastAPI()
+
+@web_app.post("/generate_video")
+async def api_generate_video(prompt: str = Field(..., example="A cat wearing a wizard hat"), loras: Optional[str] = Field(None, example='["detail_tweaker_xl.safetensors", {"name": "film_grain.safetensors", "strength": "strong"}]'), controlnets: Optional[str] = Field(None, example='["canny", {"type": "openpose", "strength": 0.8}]')):
+    try:
+        loras_list = json.loads(loras) if loras else None
+        controlnets_list = json.loads(controlnets) if controlnets else None
+        comfyui_instance = ComfyUI()
+        result = comfyui_instance.generate_video.remote(prompt, loras_list, controlnets_list)
+        return {"video_base64": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/")
+async def root():
+    return {"message": "ComfyUI Wan2.2 API is running. Use /generate_video to create content."}
+
+@app.function(image=comfy_image, keep_warm=1)
+@asgi_app()
+def fastapi_app():
+    return web_app
