@@ -101,10 +101,21 @@ volume = Volume.from_name("comfyui-models-massive-volume", create_if_missing=Tru
 comfy_image = (
     Image.from_registry("nvidia/cuda:12.1.1-devel-ubuntu22.04")
     .env({"NVIDIA_DRIVER_CAPABILITIES": "all"})
-    .apt_install("git", "wget", "libgl1", "libglib2.0-0")
+    .apt_install(
+        "git",
+        "wget",
+        "libgl1",
+        "libglib2.0-0",
+        "python3.10",
+        "python3-pip",
+        "python3.10-venv"
+    )
     .run_commands(
+        "ln -sf /usr/bin/python3.10 /usr/bin/python",
+        "ln -sf /usr/bin/pip3 /usr/bin/pip",
         f"git clone https://github.com/comfyanonymous/ComfyUI.git {COMFYUI_PATH}",
-        "cd /app/ComfyUI && pip install -r requirements.txt",
+        f"cd {COMFYUI_PATH} && pip install --upgrade pip",
+        f"cd {COMFYUI_PATH} && pip install -r requirements.txt",
         f"cd {COMFYUI_PATH / 'custom_nodes'} && git clone https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved.git",
         f"cd {COMFYUI_PATH / 'custom_nodes'} && git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
         f"cd {COMFYUI_PATH / 'custom_nodes'} && git clone https://github.com/Fannovel16/comfyui_controlnet_aux.git",
