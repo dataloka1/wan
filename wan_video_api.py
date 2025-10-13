@@ -32,16 +32,12 @@ image = (
         "libxrender-dev",
         "libgomp1",
     )
-    .pip_install(
-        "torch==2.2.0",
-        "torchvision==0.17.0", 
-        "torchaudio==2.2.0",
-        "--index-url", "https://download.pytorch.org/whl/cu121"
+    # --- PERBAIKAN: Gunakan .run_commands() untuk instalasi dengan index URL ---
+    .run_commands(
+        "pip install torch==2.2.0 torchvision==0.17.0 torchaudio==2.2.0 --index-url https://download.pytorch.org/whl/cu121",
+        "pip install xformers==0.0.24 --index-url https://download.pytorch.org/whl/cu121"
     )
-    .pip_install(
-        "xformers==0.0.24",
-        "--index-url", "https://download.pytorch.org/whl/cu121"
-    )
+    # ------------------------------------------------------------------------
     .pip_install(
         "transformers>=4.37.0",
         "diffusers>=0.26.0",
