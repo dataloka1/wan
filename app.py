@@ -266,7 +266,7 @@ cache_volume = Volume.from_name("hf-hub-cache", create_if_missing=True)
 # Definisi Image dengan requirements yang sudah dipindahkan ke atas
 comfy_image = (
     Image.debian_slim(python_version="3.10")
-    .apt_install(*REQUIREMENTS[:10])  # Install apt packages
+    .apt_install(*REQUIREMENTS[:9])  # Install apt packages
     .run_commands(
         "mkdir -p /app /cache",
         "cd /app && git clone https://github.com/comfyanonymous/ComfyUI.git",
