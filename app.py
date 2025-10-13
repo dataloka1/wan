@@ -588,11 +588,11 @@ class ComfyUI:
             },
             "2": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": prompt, "clip": ["4", 1]}
+                "inputs": {"text": prompt, "clip": ["4", 0]}
             },
             "3": {
                 "class_type": "CLIPTextEncode",
-                "inputs": {"text": negative_prompt, "clip": ["4", 1]}
+                "inputs": {"text": negative_prompt, "clip": ["4", 0]}
             },
             "4": {
                 "class_type": "CLIPLoader",
