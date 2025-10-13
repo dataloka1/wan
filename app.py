@@ -100,7 +100,7 @@ MODEL_PATH = COMFYUI_PATH / "models"
 volume = Volume.from_name("comfyui-models-massive-volume", create_if_missing=True)
 
 comfy_image = (
-    Image.from_registry("nvidia/cuda:12.1.1-devel-ubuntu22.04", setup_environment={"NVIDIA_DRIVER_CAPABILITIES": "all"})
+    Image.from_registry("nvidia/cuda:12.1.1-devel-ubuntu22.04", .env={"NVIDIA_DRIVER_CAPABILITIES": "all"})
     .apt_install("git", "wget", "libgl1", "libglib2.0-0")
     .run_commands(
         f"git clone https://github.com/comfyanonymous/ComfyUI.git {COMFYUI_PATH}",
