@@ -266,8 +266,8 @@ modal_image = (
         "libsm6", "libxext6", "libxrender-dev"
     )
     .pip_install(
-        "torch==2.5.1",
-        "torchvision==0.20.1",
+        "torch==2.5.0",
+        "torchvision==0.20.0",
         "numpy<2.0",
         "xformers==0.0.28.post2",
         "diffusers==0.31.0",
