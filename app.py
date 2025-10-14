@@ -281,6 +281,8 @@ modal_image = (
         "uvicorn[standard]",
         "pydantic",
         "controlnet_aux",
+        "sentencepiece",  # ADD THIS
+        "protobuf",
     )
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
     .run_function(
@@ -296,7 +298,7 @@ app = App("wan")
     gpu="L40S",
     volumes={str(CACHE_PATH): cache_volume},
     timeout=7200,
-    keep_warm=1,
+    min_containers=1,
 )
 class WanVideoGenerator:
     @enter()
@@ -1039,7 +1041,7 @@ async def health_check():
 
 @app.function(
     image=modal_image,
-    keep_warm=1,
+    min_containers=1,
 )
 @asgi_app()
 def fastapi_app():
