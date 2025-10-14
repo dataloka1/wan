@@ -470,7 +470,8 @@ fastapi_app = FastAPI(
 # Modal App with scalability settings
 app = App(
     "comfyui-wan2-2-production",
-    image=comfy_image
+    image=comfy_image,
+    secrets=[Secret.from_name("redis-credentials")]
 )
 
 # Redis client for distributed queue
