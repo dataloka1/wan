@@ -395,7 +395,7 @@ class ComfyUI:
         time.sleep(5)
         
         # Extended polling with more attempts
-        POLL_TIMEOUT = 180  # Increased to 3 minutes
+        POLL_TIMEOUT = 3600  # Increased to 3 minutes
         POLL_INTERVAL = 3  # Check every 3 seconds
         poll_start_time = time.time()
         poll_count = 0
