@@ -268,7 +268,8 @@ modal_image = (
     .pip_install(
         "torch==2.3.0",
         "torchvision==0.18.0",
-        "numpy<2.0",  # Pin NumPy to a compatible version
+        "numpy<2.0",
+        "xformers",  # <-- TAMBAHKAN BARIS INI
         "diffusers>=0.27.0",
         "transformers>=4.38.0",
         "accelerate>=0.27.0",
