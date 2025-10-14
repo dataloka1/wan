@@ -447,10 +447,12 @@ comfy_image = (
         "comfy node install ComfyUI-VideoHelperSuite",
         force_build=True,
     )
+    .run_commands(
+        'echo "LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH" >> /etc/environment'
+    )
     .env({
         "HF_HUB_ENABLE_HF_TRANSFER": "1",
         "PYTHONPATH": "/root/comfy",
-        "LD_LIBRARY_PATH": "/usr/local/cuda/lib64:$LD_LIBRARY_PATH"
     })
     .run_function(
         setup_comfyui,
