@@ -1817,12 +1817,7 @@ async def health_check():
 # Modal ASGI App
 # Ganti seluruh bagian akhir file dengan ini
 
-@app.function(
-    # FIX: Menggunakan variabel comfyui_image yang sudah didefinisikan
-    image=comfy_image,
-    # FIX: Mengganti parameter usang
-    min_containers=1,
-)
+@app.function()
 @asgi_app()
 def entrypoint():
     """Entry point for Modal ASGI app"""
