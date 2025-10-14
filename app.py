@@ -260,17 +260,18 @@ def setup_models():
 cache_volume = Volume.from_name("wanvideo-cache", create_if_missing=True)
 
 modal_image = (
+modal_image = (
     ModalImage.debian_slim(python_version="3.11")
     .apt_install(
         "git", "ffmpeg", "libgl1-mesa-glx", "libglib2.0-0",
         "libsm6", "libxext6", "libxrender-dev"
     )
     .pip_install(
-        "torch==2.3.0",
-        "torchvision==0.18.0",
+        "torch==2.5.1",
+        "torchvision==0.20.1",
         "numpy<2.0",
-        "xformers",  # <-- TAMBAHKAN BARIS INI
-        "diffusers>=0.27.0",
+        "xformers==0.0.28.post2",
+        "diffusers==0.31.0",
         "transformers>=4.38.0",
         "accelerate>=0.27.0",
         "safetensors>=0.4.0",
