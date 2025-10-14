@@ -598,7 +598,7 @@ queue_manager = QueueManager()
     max_containers=MAX_CONTAINERS,
     allow_concurrent_inputs=MAX_CONCURRENT_REQUESTS,
     container_idle_timeout=300,  # 5 minutes
-    min_containers=1,  # Keep 1 container warm
+  # Keep 1 container warm
 )
 class ComfyUI:
     def __init__(self):
