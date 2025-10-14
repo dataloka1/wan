@@ -477,11 +477,18 @@ app = App(
 # Redis client for distributed queue
 redis_client = None
 
+# SESUDAH ✅
 def get_redis_client():
     """Get Redis client"""
     global redis_client
     if redis_client is None:
-        redis_client = redis.from_url(REDIS_URL, decode_responses=True)
+        redis_client = redis.from_url(
+            REDIS_URL,
+            decode_responses=True,
+            health_check_interval=30,  # Cek koneksi setiap 30 detik jika idle
+            socket_connect_timeout=5,    # Waktu tunggu untuk koneksi baru
+            socket_keepalive=True      # Aktifkan keepalive di level OS
+        )
     return redis_client
 
 # Distributed Queue Manager
