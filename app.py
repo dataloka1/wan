@@ -597,10 +597,10 @@ queue_manager = QueueManager()
     gpu="L40S",
     volumes={str(CACHE_PATH): cache_volume},
     timeout=7200,
-    min_containers=1,
+    min_containers=0,
     max_containers=MAX_CONTAINERS,
     allow_concurrent_inputs=MAX_CONCURRENT_REQUESTS,
-    container_idle_timeout=300,  # 5 minutes
+    scaledown_window=300,  # 5 minutes
     # Keep 1 container warm
 )
 class ComfyUI:
@@ -1918,7 +1918,7 @@ async def api_get_queue_status():
     return status
 
 # Modal web endpoint
-@app.function(keep_warm=1)
+@app.function()
 @asgi_app()
 def fastapi_web():
     """FastAPI web endpoint"""
