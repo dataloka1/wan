@@ -266,15 +266,15 @@ modal_image = (
         "libsm6", "libxext6", "libxrender-dev"
     )
     .pip_install(
-        "torch==2.1.0",
-        "torchvision==0.16.0",
+        "torch==2.3.0",
+        "torchvision==0.18.0",
+        "numpy<2.0",  # Pin NumPy to a compatible version
         "diffusers>=0.27.0",
         "transformers>=4.38.0",
         "accelerate>=0.27.0",
         "safetensors>=0.4.0",
         "opencv-python-headless",
         "pillow",
-        "numpy",
         "huggingface_hub[hf_transfer]",
         "fastapi",
         "uvicorn[standard]",
