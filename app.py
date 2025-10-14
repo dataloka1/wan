@@ -1559,7 +1559,7 @@ class ComfyUI:
 
 # Queue processor
 @app.function(
-    image=comfyui_image,
+    image=comfy_image,
     gpu="L40S",
     volumes={str(CACHE_PATH): cache_volume},
     timeout=7200,
@@ -1567,7 +1567,7 @@ class ComfyUI:
     max_containers=MAX_CONTAINERS,
     allow_concurrent_inputs=MAX_CONCURRENT_REQUESTS,
     container_idle_timeout=300,
-    keep_warm=1,
+
 )
 class QueueProcessor:
     def __init__(self):
