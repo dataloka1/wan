@@ -598,7 +598,7 @@ queue_manager = QueueManager()
     max_containers=MAX_CONTAINERS,
     allow_concurrent_inputs=MAX_CONCURRENT_REQUESTS,
     container_idle_timeout=300,  # 5 minutes
-    keep_warm=1,  # Keep 1 container warm
+    min_containers=1,  # Keep 1 container warm
 )
 class ComfyUI:
     def __init__(self):
@@ -1815,8 +1815,16 @@ async def health_check():
         }
 
 # Modal ASGI App
-@app.function(keep_warm=30)
+# Ganti seluruh bagian akhir file dengan ini
+
+@app.function(
+    # FIX: Menggunakan variabel comfyui_image yang sudah didefinisikan
+    image=comfy_image,
+    # FIX: Mengganti parameter usang
+    min_containers=1,
+)
 @asgi_app()
 def entrypoint():
     """Entry point for Modal ASGI app"""
+    # Langsung jalankan FastAPI app
     return fastapi_app
