@@ -915,4 +915,65 @@ async def api_generate_animate(request: AnimateRequest):
 @web_app.post("/api/generate/camera-lora")
 async def api_apply_camera_lora(request: CameraLoraRequest):
     try:
-        result = ComfyUI().apply
+        result = ComfyUI().apply_camera_lora.remote(
+            image_base64=request.image_base64,
+            prompt=request.prompt,
+            camera_motion=request.camera_motion,
+            lora_strength=request.lora_strength,
+            negative_prompt=request.negative_prompt,
+            width=request.width,
+            height=request.height,
+            num_frames=request.num_frames,
+            steps=request.steps,
+            cfg=request.cfg,
+            seed=request.seed
+        )
+        return {"success": True, "video_base64": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/loras")
+async def api_list_loras():
+    try:
+        result = ComfyUI().get_available_loras.remote()
+        return {"success": True, "loras": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/camera-motions")
+async def api_list_camera_motions():
+    try:
+        result = ComfyUI().get_available_camera_motions.remote()
+        return {"success": True, "camera_motions": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/health")
+async def health_check():
+    return {"status": "healthy", "service": "ComfyUI Wan 2.2 Complete"}
+
+@app.function(
+    image=comfy_image,
+    keep_warm=1,
+)
+@asgi_app()
+def fastapi_app():
+    return web_app
+
+if __name__ == "__main__":
+    print("ComfyUI Wan 2.2 Complete Production API")
+    print("=" * 80)
+    print("\nTo deploy this application:")
+    print("1. Install Modal: pip install modal")
+    print("2. Set up Modal: modal setup")
+    print("3. Deploy: modal deploy app.py")
+    print("\nThe API will be available at the URL provided by Modal")
+    print("\nAvailable endpoints:")
+    print("  POST /api/generate/t2v - Text-to-Video")
+    print("  POST /api/generate/i2v - Image-to-Video")
+    print("  POST /api/generate/animate - Animate with pose transfer")
+    print("  POST /api/generate/camera-lora - Apply camera motion")
+    print("  GET  /api/loras - List available LoRAs")
+    print("  GET  /api/camera-motions - List camera motions")
+    print("  GET  /health - Health check")
+    print("\nFor detailed usage examples, see the deployment notes in the code")
