@@ -712,4 +712,335 @@ class WanVideoGenerator:
         print(f"[CONTROLNET] Processing with {controlnet_type}...")
         
         try:
-            image = base64_to_image(
+            image = base64_to_image(image_base64)
+            processed_tensor = self._apply_controlnet(
+                image,
+                ControlNetType(controlnet_type),
+                1.0
+            )
+            
+            processed_array = processed_tensor.squeeze(0).cpu().permute(1, 2, 0).numpy()
+            processed_array = ((processed_array + 1) * 127.5).clip(0, 255).astype(np.uint8)
+            processed_image = Image.fromarray(processed_array)
+            
+            result_b64 = image_to_base64(processed_image)
+            print(f"[CONTROLNET] ✓ Complete")
+            return result_b64
+            
+        except Exception as e:
+            print(f"[CONTROLNET] ✗ Error: {str(e)}")
+            raise
+    
+    @method()
+    def get_available_loras(self) -> Dict[str, List[str]]:
+        result = {}
+        for category, loras in LORA_REGISTRY.items():
+            result[category] = list(loras.keys())
+        return result
+    
+    @method()
+    def get_available_controlnets(self) -> List[str]:
+        return list(CONTROLNET_REGISTRY.keys())
+    
+    @method()
+    def get_lora_info(self, lora_name: str) -> Dict[str, str]:
+        for category, loras in LORA_REGISTRY.items():
+            if lora_name in loras:
+                return {
+                    "name": lora_name,
+                    "category": category,
+                    "repo_id": loras[lora_name]
+                }
+        raise ValueError(f"LoRA '{lora_name}' not found")
+
+web_app = FastAPI(
+    title="ComfyUI Wan 2.2 Complete API",
+    description="Production-ready WanVideo API with 50 LoRAs and 4 ControlNets",
+    version="3.0.1"
+)
+
+class LoRAConfig(BaseModel):
+    name: str = Field(..., description="LoRA name from registry")
+    strength: float = Field(1.0, ge=0.0, le=2.0, description="LoRA strength")
+
+class T2VRequest(BaseModel):
+    prompt: str = Field(..., description="Text prompt")
+    negative_prompt: str = Field("", description="Negative prompt")
+    width: int = Field(832, ge=256, le=2048, description="Video width")
+    height: int = Field(480, ge=256, le=2048, description="Video height")
+    num_frames: int = Field(121, ge=1, le=240, description="Number of frames")
+    steps: int = Field(30, ge=1, le=100, description="Sampling steps")
+    cfg: float = Field(7.5, ge=1.0, le=20.0, description="CFG scale")
+    seed: Optional[int] = Field(None, description="Random seed")
+    use_fast_mode: bool = Field(False, description="Use fast mode")
+    loras: Optional[List[LoRAConfig]] = Field(None, description="List of LoRAs to apply")
+    controlnet_image: Optional[str] = Field(None, description="Base64 ControlNet image")
+    controlnet_type: Optional[str] = Field(None, description="ControlNet type")
+    controlnet_scale: float = Field(1.0, ge=0.0, le=2.0, description="ControlNet scale")
+
+class I2VRequest(BaseModel):
+    image_base64: str = Field(..., description="Base64 encoded input image")
+    prompt: str = Field(..., description="Text prompt")
+    negative_prompt: str = Field("", description="Negative prompt")
+    width: int = Field(1280, ge=256, le=2048, description="Video width")
+    height: int = Field(704, ge=256, le=2048, description="Video height")
+    num_frames: int = Field(81, ge=1, le=240, description="Number of frames")
+    steps: int = Field(20, ge=1, le=100, description="Sampling steps")
+    cfg: float = Field(3.5, ge=1.0, le=20.0, description="CFG scale")
+    seed: Optional[int] = Field(None, description="Random seed")
+    use_fast_mode: bool = Field(False, description="Use fast mode")
+    loras: Optional[List[LoRAConfig]] = Field(None, description="List of LoRAs to apply")
+    controlnet_image: Optional[str] = Field(None, description="Base64 ControlNet image")
+    controlnet_type: Optional[str] = Field(None, description="ControlNet type")
+    controlnet_scale: float = Field(1.0, ge=0.0, le=2.0, description="ControlNet scale")
+
+class AnimateRequest(BaseModel):
+    reference_image_base64: str = Field(..., description="Base64 encoded reference image")
+    video_base64: str = Field(..., description="Base64 encoded input video")
+    prompt: str = Field(..., description="Text prompt")
+    negative_prompt: str = Field("", description="Negative prompt")
+    width: int = Field(640, ge=256, le=2048, description="Video width")
+    height: int = Field(640, ge=256, le=2048, description="Video height")
+    num_frames: int = Field(77, ge=1, le=240, description="Number of frames")
+    steps: int = Field(6, ge=1, le=100, description="Sampling steps")
+    cfg: float = Field(1.0, ge=0.5, le=20.0, description="CFG scale")
+    seed: Optional[int] = Field(None, description="Random seed")
+    use_fast_mode: bool = Field(True, description="Use fast mode")
+    loras: Optional[List[LoRAConfig]] = Field(None, description="List of LoRAs to apply")
+
+class ControlNetRequest(BaseModel):
+    image_base64: str = Field(..., description="Base64 encoded input image")
+    controlnet_type: str = Field(..., description="ControlNet type (canny, depth, openpose, scribble)")
+
+@web_app.get("/")
+async def root():
+    return {
+        "service": "ComfyUI Wan 2.2 Complete API",
+        "version": "3.0.1",
+        "status": "operational",
+        "features": {
+            "loras": 50,
+            "controlnets": 4,
+            "pipeline": "simplified-production"
+        },
+        "endpoints": {
+            "t2v": "/api/generate/t2v",
+            "i2v": "/api/generate/i2v",
+            "animate": "/api/generate/animate",
+            "controlnet_preview": "/api/controlnet/preview",
+            "list_loras": "/api/loras",
+            "list_loras_by_category": "/api/loras/{category}",
+            "lora_info": "/api/loras/info/{lora_name}",
+            "list_controlnets": "/api/controlnets",
+            "health": "/health"
+        },
+        "documentation": "/docs"
+    }
+
+@web_app.post("/api/generate/t2v")
+async def api_generate_t2v(request: T2VRequest):
+    try:
+        loras_dict = [lora.dict() for lora in request.loras] if request.loras else None
+        
+        result = WanVideoGenerator().generate_t2v.remote(
+            prompt=request.prompt,
+            negative_prompt=request.negative_prompt,
+            width=request.width,
+            height=request.height,
+            num_frames=request.num_frames,
+            steps=request.steps,
+            cfg=request.cfg,
+            seed=request.seed,
+            use_fast_mode=request.use_fast_mode,
+            loras=loras_dict,
+            controlnet_image=request.controlnet_image,
+            controlnet_type=request.controlnet_type,
+            controlnet_scale=request.controlnet_scale
+        )
+        return {
+            "success": True,
+            "video_base64": result,
+            "metadata": {
+                "width": request.width,
+                "height": request.height,
+                "num_frames": request.num_frames,
+                "loras_applied": len(request.loras) if request.loras else 0
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.post("/api/generate/i2v")
+async def api_generate_i2v(request: I2VRequest):
+    try:
+        loras_dict = [lora.dict() for lora in request.loras] if request.loras else None
+        
+        result = WanVideoGenerator().generate_i2v.remote(
+            image_base64=request.image_base64,
+            prompt=request.prompt,
+            negative_prompt=request.negative_prompt,
+            width=request.width,
+            height=request.height,
+            num_frames=request.num_frames,
+            steps=request.steps,
+            cfg=request.cfg,
+            seed=request.seed,
+            use_fast_mode=request.use_fast_mode,
+            loras=loras_dict,
+            controlnet_image=request.controlnet_image,
+            controlnet_type=request.controlnet_type,
+            controlnet_scale=request.controlnet_scale
+        )
+        return {
+            "success": True,
+            "video_base64": result,
+            "metadata": {
+                "width": request.width,
+                "height": request.height,
+                "num_frames": request.num_frames,
+                "loras_applied": len(request.loras) if request.loras else 0
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.post("/api/generate/animate")
+async def api_generate_animate(request: AnimateRequest):
+    try:
+        loras_dict = [lora.dict() for lora in request.loras] if request.loras else None
+        
+        result = WanVideoGenerator().generate_animate.remote(
+            reference_image_base64=request.reference_image_base64,
+            video_base64=request.video_base64,
+            prompt=request.prompt,
+            negative_prompt=request.negative_prompt,
+            width=request.width,
+            height=request.height,
+            num_frames=request.num_frames,
+            steps=request.steps,
+            cfg=request.cfg,
+            seed=request.seed,
+            use_fast_mode=request.use_fast_mode,
+            loras=loras_dict
+        )
+        return {
+            "success": True,
+            "video_base64": result,
+            "metadata": {
+                "width": request.width,
+                "height": request.height,
+                "num_frames": request.num_frames,
+                "loras_applied": len(request.loras) if request.loras else 0
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.post("/api/controlnet/preview")
+async def api_controlnet_preview(request: ControlNetRequest):
+    try:
+        result = WanVideoGenerator().apply_controlnet_to_image.remote(
+            image_base64=request.image_base64,
+            controlnet_type=request.controlnet_type
+        )
+        return {
+            "success": True,
+            "processed_image_base64": result,
+            "controlnet_type": request.controlnet_type
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/loras")
+async def api_list_loras():
+    try:
+        result = WanVideoGenerator().get_available_loras.remote()
+        total_loras = sum(len(loras) for loras in result.values())
+        return {
+            "success": True,
+            "total_loras": total_loras,
+            "loras_by_category": result,
+            "categories": list(result.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/loras/{category}")
+async def api_list_loras_by_category(category: str):
+    try:
+        all_loras = WanVideoGenerator().get_available_loras.remote()
+        if category not in all_loras:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Category '{category}' not found. Available: {list(all_loras.keys())}"
+            )
+        return {
+            "success": True,
+            "category": category,
+            "loras": all_loras[category],
+            "count": len(all_loras[category])
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/loras/info/{lora_name}")
+async def api_lora_info(lora_name: str):
+    try:
+        result = WanVideoGenerator().get_lora_info.remote(lora_name)
+        return {
+            "success": True,
+            "lora": result
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/controlnets")
+async def api_list_controlnets():
+    try:
+        result = WanVideoGenerator().get_available_controlnets.remote()
+        return {
+            "success": True,
+            "controlnets": result,
+            "count": len(result),
+            "details": {
+                cn: {
+                    "type": cn,
+                    "preprocessor": CONTROLNET_REGISTRY[cn]["preprocessor"]
+                }
+                for cn in result
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@web_app.get("/api/camera-motions")
+async def api_list_camera_motions():
+    return {
+        "success": True,
+        "camera_motions": [],
+        "message": "Camera motion LoRAs have been removed. Use style/effect LoRAs instead."
+    }
+
+@web_app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "ComfyUI Wan 2.2 Complete",
+        "version": "3.0.1",
+        "features": {
+            "loras": 50,
+            "controlnets": 4
+        }
+    }
+
+@app.function(
+    image=modal_image,
+    min_containers=1,  # FIXED: Changed from keep_warm=1
+)
+@asgi_app()
+def fastapi_app():
+    return web_app
