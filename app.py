@@ -260,7 +260,6 @@ def setup_models():
 cache_volume = Volume.from_name("wanvideo-cache", create_if_missing=True)
 
 modal_image = (
-modal_image = (
     ModalImage.debian_slim(python_version="3.11")
     .apt_install(
         "git", "ffmpeg", "libgl1-mesa-glx", "libglib2.0-0",
@@ -290,7 +289,7 @@ modal_image = (
     )
 )
 
-app = App("comfyui-wan2-2-complete-production")
+app = App("wan")
 
 @app.cls(
     image=modal_image,
