@@ -1564,7 +1564,7 @@ class ComfyUI:
         return workflow
 
     # API Methods
-    @method
+    @method()
     def generate_t2v(self, request: T2VRequest) -> Dict:
         """Generate video from text prompt"""
         task_id = request.task_id or str(uuid.uuid4())
@@ -1621,7 +1621,7 @@ class ComfyUI:
             
             raise HTTPException(status_code=500, detail=str(e))
 
-    @method
+    @method()
     def generate_i2v(self, request: I2VRequest) -> Dict:
         """Generate video from image and text prompt"""
         task_id = request.task_id or str(uuid.uuid4())
@@ -1682,7 +1682,7 @@ class ComfyUI:
             
             raise HTTPException(status_code=500, detail=str(e))
 
-    @method
+    @method()
     def generate_animate(self, request: AnimateRequest) -> Dict:
         """Generate animated video from reference image and video"""
         task_id = request.task_id or str(uuid.uuid4())
@@ -1744,7 +1744,7 @@ class ComfyUI:
             
             raise HTTPException(status_code=500, detail=str(e))
 
-    @method
+    @method()
     def generate_camera_lora(self, request: CameraLoraRequest) -> Dict:
         """Generate video with camera motion LoRA"""
         task_id = request.task_id or str(uuid.uuid4())
@@ -1806,7 +1806,7 @@ class ComfyUI:
             
             raise HTTPException(status_code=500, detail=str(e))
 
-    @method
+    @method()
     def cancel_task(self, task_id: str) -> Dict:
         """Cancel a running task"""
         task = self._get_task(task_id)
@@ -1819,7 +1819,7 @@ class ComfyUI:
         else:
             return {"status": "not_found", "task_id": task_id}
 
-    @method
+    @method()
     def get_task_status(self, task_id: str) -> Dict:
         """Get task status"""
         task = self._get_task(task_id)
@@ -1837,7 +1837,7 @@ class ComfyUI:
         else:
             return {"task_id": task_id, "status": "not_found"}
 
-    @method
+    @method()
     def get_queue_status(self) -> Dict:
         """Get queue status"""
         return queue_manager.get_queue_status()
